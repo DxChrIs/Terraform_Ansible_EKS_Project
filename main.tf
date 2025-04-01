@@ -116,12 +116,33 @@ resource "aws_autoscaling_group" "linux_asg" {
 #############################################
 #              ELASTIC IPs                  #
 #############################################
-resource "aws_eip" "windows_eip" {
-    instance = aws_autoscaling_group.windows_asg.id
+resource "aws_eip" "windows_eip" {}
+
+data "aws_instances" "windows_instances" {
+    filter {
+        name = "tag:aws:autoscaling:groupName"
+        values = [aws_autoscaling_group.windows_asg.name]
+    }
 }
 
-resource "aws_eip" "linux_eip" {
-    instance = aws_autoscaling_group.linux_asg.id
+resource "aws_eip_association" "windows_eip_association" {
+    instance_id = tolist(data.aws_instances.windows_instances.ids)[0]
+    allocation_id = aws_eip.windows_eip.id
+}
+
+resource "aws_eip" "linux_eip" {}
+
+data "aws_instances" "linux_instances" {
+    filter {
+        name = "tag:aws:autoscaling:groupName"
+        values = [aws_autoscaling_group.linux_asg.name]
+    }
+
+}
+
+resource "aws_eip_association" "linux_eip_association" {
+    instance_id = tolist(data.aws_instances.linux_instances.ids)[0]
+    allocation_id = aws_eip.linux_eip.id
 }
 
 #############################################
