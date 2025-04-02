@@ -233,7 +233,7 @@ module "eks" {
             max_size      = 2
             desired_size  = 1
             node_role_arn = aws_iam_role.eks_node_role.arn  # Rol de IAM para los nodos
-            subnet_ids    = module.vpc.private_subnets  # Subredes publicas para los nodos
+            subnet_ids    = module.vpc.private_subnets  # Subredes publicas para los nodos NO CAMBIAR A PUBLICO O EXPLOTA
             security_groups = [aws_security_group.linux_ssh.id]  # Grupo de seguridad para los nodos
             ami = var.linux_ami_id  # ID de la AMI para Linux
             labels = {
@@ -249,7 +249,7 @@ module "eks" {
             max_size      = 2
             desired_size  = 1
             node_role_arn = aws_iam_role.eks_node_role.arn  # Rol de IAM para los nodos
-            subnet_ids    = module.vpc.private_subnets  # Subredes publicas para los nodos
+            subnet_ids    = module.vpc.private_subnets  # Subredes publicas para los nodos NO CAMBIAR A PUBLICO O EXPLOTA
             security_groups = [aws_security_group.windows_rdp.id]  # Grupo de seguridad para los nodos
             ami = var.windows_ami_id  # ID de la AMI para Windows
             labels = {
