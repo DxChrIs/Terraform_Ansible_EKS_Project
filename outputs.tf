@@ -33,7 +33,3 @@ output "cluster_name" {
     description = "EKS Name"  # Nombre del clúster EKS creado.
     value = module.eks.cluster_name  # Devuelve el nombre del clúster EKS.
 }
-
-output "windows_public_ip" {
-    value = aws_instance.windows_instance.public_ip  # Devuelve la IP pública de la instancia EC2 Windows.
-}

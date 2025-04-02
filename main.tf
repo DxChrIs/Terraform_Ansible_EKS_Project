@@ -61,51 +61,51 @@ module "vpc" {
 #             INSTANCIAS EC2                #
 #############################################
 # Instancia de Windows Server 2019
-resource "aws_instance" "windows_instance" {
-    ami           = var.windows_ami_id # Reemplazar con la AMI de Windows Server 2019
-    instance_type = "t2.micro"
-    subnet_id     = aws.subnet.public_subnet.id
-    associate_public_ip_address = true
-    security_groups = [ aws_security_group.windows_rdp.id ]
+# resource "aws_instance" "windows_instance" {
+#     ami           = var.windows_ami_id # Reemplazar con la AMI de Windows Server 2019
+#     instance_type = "t2.micro"
+#     subnet_id     = module.vpc.private_subnets[0] # Usar la primera subred pública
+#     associate_public_ip_address = true
+#     security_groups = [ aws_security_group.windows_rdp.id ]
 
-    # Usar una configuración de RDP
-    user_data = <<-EOF
-        <powershell>
-        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+#     # Usar una configuración de RDP
+#     user_data = <<-EOF
+#         <powershell>
+#         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
 
-        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+#         Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
 
-        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0
+#         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0
 
-        Restart-Service TermService -Force
-        </powershell>
-    EOF
+#         Restart-Service TermService -Force
+#         </powershell>
+#     EOF
 
-    tags = {
-        Name = "WindowsInstance"
-    }
-}
+#     tags = {
+#         Name = "WindowsInstance"
+#     }
+# }
 
-# Instancia de Linux Ubuntu
-resource "aws_instance" "linux_instance" {
-    ami           = var.linux_ami_id # Reemplazar con la AMI de Ubuntu
-    instance_type = "t2.micro"
-    subnet_id = aws.subnet.public_subnet.id
-    associate_public_ip_address = true
-    security_groups = [ aws_security_group.linux_ssh.id ]
+# # Instancia de Linux Ubuntu
+# resource "aws_instance" "linux_instance" {
+#     ami           = var.linux_ami_id # Reemplazar con la AMI de Ubuntu
+#     instance_type = "t2.micro"
+#     subnet_id = module.vpc.private_subnets[1] # Usar la segunda subred pública
+#     associate_public_ip_address = true
+#     security_groups = [ aws_security_group.linux_ssh.id ]
 
-    # Usar una configuración de SSH
-    user_data = <<-EOF
-        #!/bin/bash
-        sudo apt-get update -y
-        sudo apt-get install -y openssh-server
-        sudo systemctl enable ssh
-        sudo systemctl start ssh
-    EOF
-    tags = {
-        Name = "LinuxInstance"
-    }
-}
+#     # Usar una configuración de SSH
+#     user_data = <<-EOF
+#         #!/bin/bash
+#         sudo apt-get update -y
+#         sudo apt-get install -y openssh-server
+#         sudo systemctl enable ssh
+#         sudo systemctl start ssh
+#     EOF
+#     tags = {
+#         Name = "LinuxInstance"
+#     }
+# }
 
 #############################################
 #              Auto Scaling                 #
@@ -131,19 +131,19 @@ resource "aws_instance" "linux_instance" {
 #############################################
 #              ELASTIC IPs                  #
 #############################################
-resource "aws_eip" "windows_eip" {}
+# resource "aws_eip" "windows_eip" {}
 
-resource "aws_eip_association" "windows_eip_association" {
-    instance_id = aws_instance.windows_instance.id
-    allocation_id = aws_eip.windows_eip.id
-}
+# resource "aws_eip_association" "windows_eip_association" {
+#     instance_id = aws_instance.windows_instance.id
+#     allocation_id = aws_eip.windows_eip.id
+# }
 
-resource "aws_eip" "linux_eip" {}
+# resource "aws_eip" "linux_eip" {}
 
-resource "aws_eip_association" "linux_eip_association" {
-    instance_id = aws_instance.linux_instance.id
-    allocation_id = aws_eip.linux_eip.id
-}
+# resource "aws_eip_association" "linux_eip_association" {
+#     instance_id = aws_instance.linux_instance.id
+#     allocation_id = aws_eip.linux_eip.id
+# }
 
 #############################################
 #            SECURITY GROUP                 #
@@ -217,6 +217,11 @@ module "eks" {
     vpc_id     = module.vpc.vpc_id
     subnet_ids = module.vpc.private_subnets
 
+    eks_managed_node_group_defaults = {
+        ami_type = "AL2_x86_64"  # Tipo de AMI para los nodos EKS.
+        instance_type = "t2.micro"  # Tipo de instancia para los nodos EKS.
+    }
+
     # Definición del grupo de nodos gestionados por EKS. 
     # Se habilita el auto scaling y se especifica el tipo de instancia.
     eks_managed_node_groups = {
@@ -226,10 +231,11 @@ module "eks" {
             instance_type = "t2.micro"
             min_size      = 1
             max_size      = 2
-            desired_size  = 2
+            desired_size  = 1
             node_role_arn = aws_iam_role.eks_node_role.arn  # Rol de IAM para los nodos
-            subnet_ids    = module.vpc.private_subnets  # Subredes privadas para los nodos
-
+            subnet_ids    = module.vpc.private_subnets  # Subredes publicas para los nodos
+            security_groups = [aws_security_group.linux_ssh.id]  # Grupo de seguridad para los nodos
+            ami = var.linux_ami_id  # ID de la AMI para Linux
             labels = {
                 "node-type" = "linux"
             }
@@ -241,9 +247,11 @@ module "eks" {
             instance_type = "t2.micro"
             min_size      = 1
             max_size      = 2
-            desired_size  = 2
+            desired_size  = 1
             node_role_arn = aws_iam_role.eks_node_role.arn  # Rol de IAM para los nodos
-            subnet_ids    = module.vpc.private_subnets  # Subredes privadas para los nodos
+            subnet_ids    = module.vpc.private_subnets  # Subredes publicas para los nodos
+            security_groups = [aws_security_group.windows_rdp.id]  # Grupo de seguridad para los nodos
+            ami = var.windows_ami_id  # ID de la AMI para Windows
             labels = {
                 "node-type" = "windows"
             }
@@ -252,8 +260,13 @@ module "eks" {
 }
 
 #############################################
-#                  Node                     #
+#               POLÍTICA IAM                #
 #############################################
+# Se obtiene la política IAM predefinida para el controlador EBS CSI.
+data "aws_iam_policy" "ebs_csi_policy" {
+    arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
+}
+
 # Se crea el rol de IAM para los nodos EKS, permitiendo el acceso a la VPC y a los recursos de AWS.
 resource "aws_iam_role" "eks_node_role" {
     name               = "${local.cluster_name}-node-role"
@@ -263,6 +276,7 @@ resource "aws_iam_role" "eks_node_role" {
         {
             Effect = "Allow"
             Action = "sts:AssumeRole"
+            Sid:""
             Principal = {
             Service = "ec2.amazonaws.com"
             }
@@ -284,14 +298,6 @@ resource "aws_iam_role_policy_attachment" "ecr_readonly_policy" {
 resource "aws_iam_role_policy_attachment" "eks_cni_policy" {
     role       = aws_iam_role.eks_node_role.name
     policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
-}
-
-#############################################
-#        POLÍTICA IAM PARA EBS CSI         #
-#############################################
-# Se obtiene la política IAM predefinida para el controlador EBS CSI.
-data "aws_iam_policy" "ebs_csi_policy" {
-    arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
 }
 
 #############################################
