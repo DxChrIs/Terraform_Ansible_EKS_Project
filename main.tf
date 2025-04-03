@@ -211,16 +211,20 @@ module "eks" {
         aws-ebs-csi-driver = {
             service_account_role_arn = module.irsa-ebs-csi.iam_role_arn
         }
+        coredns = {
+            most_recent = true
+        }
+        kube-proxy = {
+            most_recent = true
+        }
+        vpc-cni = {
+            most_recent = true
+        }
     }
 
     # Se asocia el clúster a la VPC y a sus subredes privadas.
     vpc_id     = module.vpc.vpc_id
     subnet_ids = module.vpc.private_subnets
-
-    eks_managed_node_group_defaults = {
-        ami_type = "AL2_x86_64"  # Tipo de AMI para los nodos EKS.
-        instance_type = "t2.micro"  # Tipo de instancia para los nodos EKS.
-    }
 
     # Definición del grupo de nodos gestionados por EKS. 
     # Se habilita el auto scaling y se especifica el tipo de instancia.
@@ -228,14 +232,18 @@ module "eks" {
         # Se define el grupo de nodos 1 para Linux.
         linux_nodes = {
             name          = "linux_node_group"
-            instance_type = "t2.micro"
+            subnet_ids    = module.vpc.private_subnets  # Subredes publicas para los nodos NO CAMBIAR A PUBLICO O EXPLOTA
+
             min_size      = 1
             max_size      = 2
             desired_size  = 1
+
+            ami_type = "AL2_x84_64"
+            instance_types = ["t2.micro"]  # Tipo de instancia para los nodos
+            
             node_role_arn = aws_iam_role.eks_node_role.arn  # Rol de IAM para los nodos
-            subnet_ids    = module.vpc.private_subnets  # Subredes publicas para los nodos NO CAMBIAR A PUBLICO O EXPLOTA
             security_groups = [aws_security_group.linux_ssh.id]  # Grupo de seguridad para los nodos
-            ami = var.linux_ami_id  # ID de la AMI para Linux
+            ec2_ssh_key = var.my-key-pair # Nombre de la clave SSH para acceder a los nodos
             labels = {
                 "node-type" = "linux"
             }
@@ -244,14 +252,17 @@ module "eks" {
         # Se define el grupo de nodos 2 para Windows.
         windows_nodes = {
             name          = "windows_node_group"
-            instance_type = "t2.micro"
+            subnet_ids    = module.vpc.private_subnets  # Subredes publicas para los nodos NO CAMBIAR A PUBLICO O EXPLOTA
+
             min_size      = 1
             max_size      = 2
             desired_size  = 1
+
+            ami_type       = "WINDOWS_CORE_2019_x86_64"
+            instance_types = ["t2.micro"]
+            
             node_role_arn = aws_iam_role.eks_node_role.arn  # Rol de IAM para los nodos
-            subnet_ids    = module.vpc.private_subnets  # Subredes publicas para los nodos NO CAMBIAR A PUBLICO O EXPLOTA
             security_groups = [aws_security_group.windows_rdp.id]  # Grupo de seguridad para los nodos
-            ami = var.windows_ami_id  # ID de la AMI para Windows
             labels = {
                 "node-type" = "windows"
             }
