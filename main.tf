@@ -32,7 +32,7 @@ locals {
 module "vpc" {
     source  = "terraform-aws-modules/vpc/aws"
     version = "5.8.1"
-    name    = "example_vpc"
+    name    = "chris-jaime-vpc"
 
     # Definición del rango de direcciones IP de la VPC.
     cidr = "10.0.0.0/16"
@@ -41,6 +41,7 @@ module "vpc" {
     # Subredes privadas y públicas dentro de la VPC.
     private_subnets = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
     public_subnets  = ["10.0.4.0/24", "10.0.5.0/24", "10.0.6.0/24"]
+    intra_subnets   = ["10.0.7.0/24", "10.0.8.0/24", "10.0.9.0/24"]
 
     # Se habilita un NAT Gateway para permitir el tráfico saliente desde subredes privadas.
     enable_nat_gateway = true
@@ -131,19 +132,6 @@ module "vpc" {
 #############################################
 #              ELASTIC IPs                  #
 #############################################
-# resource "aws_eip" "windows_eip" {}
-
-# resource "aws_eip_association" "windows_eip_association" {
-#     instance_id = aws_instance.windows_instance.id
-#     allocation_id = aws_eip.windows_eip.id
-# }
-
-# resource "aws_eip" "linux_eip" {}
-
-# resource "aws_eip_association" "linux_eip_association" {
-#     instance_id = aws_instance.linux_instance.id
-#     allocation_id = aws_eip.linux_eip.id
-# }
 
 #############################################
 #            SECURITY GROUP                 #
@@ -158,7 +146,7 @@ resource "aws_security_group" "linux_ssh" {
         from_port   = 22
         to_port     = 22
         protocol    = "tcp"
-        cidr_blocks = ["0.0.0.0/0"]
+        cidr_blocks = ["10.0.0.0/16"]
     }
 
     # Regla para permitir todo el tráfico saliente
@@ -179,7 +167,7 @@ resource "aws_security_group" "windows_rdp" {
         from_port   = 3389
         to_port     = 3389
         protocol    = "tcp"
-        cidr_blocks = ["0.0.0.0/0"]
+        cidr_blocks = ["10.0.0.0/16"]
     }
 
     # Regla para permitir todo el tráfico saliente
@@ -208,23 +196,21 @@ module "eks" {
 
     # Se agregan complementos del clúster, como el controlador CSI de EBS.
     cluster_addons = {
-        aws-ebs-csi-driver = {
-            service_account_role_arn = module.irsa-ebs-csi.iam_role_arn
-        }
         coredns = {
-            most_recent = true
+        most_recent = true
         }
         kube-proxy = {
-            most_recent = true
+        most_recent = true
         }
         vpc-cni = {
-            most_recent = true
+        most_recent = true
         }
     }
 
     # Se asocia el clúster a la VPC y a sus subredes privadas.
     vpc_id     = module.vpc.vpc_id
     subnet_ids = module.vpc.private_subnets
+    control_plane_subnet_ids = module.vpc.intra_subnets
 
     # Definición del grupo de nodos gestionados por EKS. 
     # Se habilita el auto scaling y se especifica el tipo de instancia.
@@ -232,18 +218,22 @@ module "eks" {
         # Se define el grupo de nodos 1 para Linux.
         linux_nodes = {
             name          = "linux_node_group"
-            subnet_ids    = module.vpc.private_subnets  # Subredes publicas para los nodos NO CAMBIAR A PUBLICO O EXPLOTA
+            subnet_ids    = module.vpc.private_subnets # Subredes publicas para los nodos NO CAMBIAR A PUBLICO O EXPLOTA
+            enable_remote_access = true
+            use_custom_launch_template = false
 
             min_size      = 1
             max_size      = 2
             desired_size  = 1
 
-            ami_type = "AL2_x84_64"
+            ami_type = "AL2_x86_64"
             instance_types = ["t2.micro"]  # Tipo de instancia para los nodos
             
             node_role_arn = aws_iam_role.eks_node_role.arn  # Rol de IAM para los nodos
-            security_groups = [aws_security_group.linux_ssh.id]  # Grupo de seguridad para los nodos
-            ec2_ssh_key = var.my-key-pair # Nombre de la clave SSH para acceder a los nodos
+            security_groups = aws_security_group.linux_ssh.id  # Grupo de seguridad para los nodos
+            remote_access = {
+                ec2_ssh_key = var.my-key-pair # Nombre de la clave SSH para acceder a los nodos
+            }
             labels = {
                 "node-type" = "linux"
             }
@@ -253,6 +243,7 @@ module "eks" {
         windows_nodes = {
             name          = "windows_node_group"
             subnet_ids    = module.vpc.private_subnets  # Subredes publicas para los nodos NO CAMBIAR A PUBLICO O EXPLOTA
+            enable_remote_access = true
 
             min_size      = 1
             max_size      = 2
@@ -262,7 +253,7 @@ module "eks" {
             instance_types = ["t2.micro"]
             
             node_role_arn = aws_iam_role.eks_node_role.arn  # Rol de IAM para los nodos
-            security_groups = [aws_security_group.windows_rdp.id]  # Grupo de seguridad para los nodos
+            security_groups = aws_security_group.windows_rdp.id  # Grupo de seguridad para los nodos
             labels = {
                 "node-type" = "windows"
             }
@@ -273,10 +264,6 @@ module "eks" {
 #############################################
 #               POLÍTICA IAM                #
 #############################################
-# Se obtiene la política IAM predefinida para el controlador EBS CSI.
-data "aws_iam_policy" "ebs_csi_policy" {
-    arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
-}
 
 # Se crea el rol de IAM para los nodos EKS, permitiendo el acceso a la VPC y a los recursos de AWS.
 resource "aws_iam_role" "eks_node_role" {
@@ -287,7 +274,7 @@ resource "aws_iam_role" "eks_node_role" {
         {
             Effect = "Allow"
             Action = "sts:AssumeRole"
-            Sid:""
+            Sid:"Example"
             Principal = {
             Service = "ec2.amazonaws.com"
             }
@@ -309,19 +296,4 @@ resource "aws_iam_role_policy_attachment" "ecr_readonly_policy" {
 resource "aws_iam_role_policy_attachment" "eks_cni_policy" {
     role       = aws_iam_role.eks_node_role.name
     policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
-}
-
-#############################################
-#        ROL IAM PARA INTEGRACIÓN OIDC      #
-#############################################
-# Se crea un rol IAM para permitir la integración con el proveedor OIDC de EKS.
-module "irsa-ebs-csi" {
-    source  = "terraform-aws-modules/iam/aws//modules/iam-assumable-role-with-oidc"
-    version = "4.0.0"
-
-    create_role                   = true
-    role_name                     = "AmazonEKSTFEBSCSIRole-${module.eks.cluster_name}"
-    provider_url                  = module.eks.oidc_provider
-    role_policy_arns              = [data.aws_iam_policy.ebs_csi_policy.arn]
-    oidc_fully_qualified_subjects = ["system:serviceaccount:kube-system:ebs-csi-controller-sa"]
 }

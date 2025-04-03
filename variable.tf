@@ -2,7 +2,7 @@
 variable "instance_name" {
     description = "Value of the Name tag for the EC2 instance"  # Descripción que explica el propósito de la variable: el valor de la etiqueta 'Name' de la instancia EC2.
     type = string  # El tipo de la variable es un string (cadena de texto).
-    default = "ExampleEKSCluster"  # Valor por defecto de la variable: "ExampleEKSCluster", que se utilizará si no se especifica otro valor.
+    default = "ChrisAndJaimeClusterProject1"  # Valor por defecto de la variable: "ExampleEKSCluster", que se utilizará si no se especifica otro valor.
 }
 
 # Definición de la variable "region"
