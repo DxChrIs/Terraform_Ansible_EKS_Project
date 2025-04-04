@@ -146,7 +146,7 @@ resource "aws_security_group" "linux_ssh" {
         from_port   = 22
         to_port     = 22
         protocol    = "tcp"
-        cidr_blocks = ["10.0.0.0/16"]
+        cidr_blocks = ["10.0.0.0/8"]
     }
 
     # Regla para permitir todo el tráfico saliente
@@ -218,6 +218,8 @@ module "eks" {
         # Se define el grupo de nodos 1 para Linux.
         linux_nodes = {
             name          = "linux_node_group"
+            use_name_prefix = true
+
             subnet_ids    = module.vpc.private_subnets # Subredes publicas para los nodos NO CAMBIAR A PUBLICO O EXPLOTA
             enable_remote_access = true
             use_custom_launch_template = false
@@ -226,7 +228,7 @@ module "eks" {
             max_size      = 2
             desired_size  = 1
 
-            ami_type = "AL2_x86_64"
+            ami_type = "AL2_x86_64" # Tipo de AMI para los nodos Linux
             instance_types = ["t2.micro"]  # Tipo de instancia para los nodos
             
             node_role_arn = aws_iam_role.eks_node_role.arn  # Rol de IAM para los nodos
@@ -243,14 +245,13 @@ module "eks" {
         windows_nodes = {
             name          = "windows_node_group"
             subnet_ids    = module.vpc.private_subnets  # Subredes publicas para los nodos NO CAMBIAR A PUBLICO O EXPLOTA
-            enable_remote_access = true
 
             min_size      = 1
             max_size      = 2
             desired_size  = 1
 
-            ami_type       = "WINDOWS_CORE_2019_x86_64"
-            instance_types = ["t2.micro"]
+            ami_type       = "WINDOWS_CORE_2019_x86_64" # Tipo de AMI para los nodos Windows
+            instance_types = ["t2.micro"] # Tipo de instancia para los nodos
             
             node_role_arn = aws_iam_role.eks_node_role.arn  # Rol de IAM para los nodos
             security_groups = aws_security_group.windows_rdp.id  # Grupo de seguridad para los nodos
@@ -274,7 +275,6 @@ resource "aws_iam_role" "eks_node_role" {
         {
             Effect = "Allow"
             Action = "sts:AssumeRole"
-            Sid:"Example"
             Principal = {
             Service = "ec2.amazonaws.com"
             }
